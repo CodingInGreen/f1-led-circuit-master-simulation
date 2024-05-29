@@ -7,7 +7,7 @@ use eframe::{egui, App, Frame};
 use std::error::Error;
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Deserialize)]
 struct LedCoordinate {
@@ -33,6 +33,8 @@ struct PlotApp {
     colors: HashMap<u32, egui::Color32>,
     current_index: usize,
     next_update_time: DateTime<Utc>,
+    led_states: HashMap<(i64, i64), egui::Color32>,  // Tracks the current state of the LEDs
+    active_leds: HashSet<(i64, i64)>,  // Tracks the currently active LEDs
 }
 
 impl PlotApp {
@@ -46,6 +48,8 @@ impl PlotApp {
             colors,
             current_index: 0,
             next_update_time: Utc::now(),
+            led_states: HashMap::new(), // Initialize empty LED state tracking
+            active_leds: HashSet::new(), // Initialize empty set for active LEDs
         };
         app.calculate_next_update_time(); // Calculate initial next_update_time
         app
@@ -56,6 +60,8 @@ impl PlotApp {
         self.start_datetime = Utc::now();
         self.race_started = false;
         self.current_index = 0;
+        self.led_states.clear(); // Reset LED states
+        self.active_leds.clear(); // Reset active LEDs
         self.calculate_next_update_time(); // Calculate next_update_time after reset
     }
 
@@ -76,9 +82,24 @@ impl PlotApp {
             if current_time >= self.next_update_time {
                 self.current_index += 1;
                 if self.current_index < self.run_race_data.len() {
+                    let run_data = &self.run_race_data[self.current_index];
+                    let color = self.colors.get(&run_data.driver_number).copied().unwrap_or(egui::Color32::WHITE);
+
+                    let coord_key = (
+                        Self::scale_f64(run_data.x_led, 1_000_000),
+                        Self::scale_f64(run_data.y_led, 1_000_000),
+                    );
+
+                    self.led_states.insert(coord_key, color); // Update the LED state
+                    self.active_leds.insert(coord_key); // Add to active LEDs
+
                     self.calculate_next_update_time(); // Calculate next update time for the next data point
                 }
             }
+
+            // Remove inactive LEDs
+            self.led_states.retain(|k, _| self.active_leds.contains(k));
+            self.active_leds.clear(); // Clear active LEDs after updating
         }
     }
 
@@ -117,6 +138,8 @@ impl App for PlotApp {
                     self.start_time = Instant::now();
                     self.start_datetime = Utc::now();
                     self.current_index = 0;
+                    self.led_states.clear(); // Clear LED states when race starts
+                    self.active_leds.clear(); // Clear active LEDs when race starts
                     self.calculate_next_update_time(); // Calculate next update time when race starts
                 }
                 if ui.button("STOP").clicked() {
@@ -126,20 +149,6 @@ impl App for PlotApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut led_colors: HashMap<(i64, i64), egui::Color32> = HashMap::new();
-            let scale_factor = 1_000_000;
-
-            for run_data in self.run_race_data.iter().take(self.current_index) {
-                let color = self.colors.get(&run_data.driver_number).copied().unwrap_or(egui::Color32::WHITE);
-
-                let coord_key = (
-                    Self::scale_f64(run_data.x_led, scale_factor),
-                    Self::scale_f64(run_data.y_led, scale_factor),
-                );
-
-                led_colors.insert(coord_key, color);
-            }
-
             for coord in &self.coordinates {
                 let norm_x = ((coord.x_led - min_x) / width) as f32 * ui.available_width();
                 let norm_y = ui.available_height() - (((coord.y_led - min_y) / height) as f32 * ui.available_height());
@@ -154,9 +163,9 @@ impl App for PlotApp {
                 );
             }
 
-            for ((x, y), color) in led_colors {
-                let norm_x = ((x as f64 / scale_factor as f64 - min_x) / width) as f32 * ui.available_width();
-                let norm_y = ui.available_height() - (((y as f64 / scale_factor as f64 - min_y) / height) as f32 * ui.available_height());
+            for ((x, y), color) in &self.led_states {
+                let norm_x = ((*x as f64 / 1_000_000.0 - min_x) / width) as f32 * ui.available_width();
+                let norm_y = ui.available_height() - (((*y as f64 / 1_000_000.0 - min_y) / height) as f32 * ui.available_height());
 
                 painter.rect_filled(
                     egui::Rect::from_min_size(
@@ -164,12 +173,12 @@ impl App for PlotApp {
                         egui::vec2(20.0, 20.0),
                     ),
                     egui::Rounding::same(0.0),
-                    color,
+                    *color,
                 );
             }
         });
 
-        ctx.request_repaint();
+        ctx.request_repaint(); // Request the GUI to repaint
     }
 }
 
@@ -230,4 +239,3 @@ fn read_race_data(file_path: &str) -> Result<Vec<RunRace>, Box<dyn Error>> {
     }
     Ok(run_race_data)
 }
-
