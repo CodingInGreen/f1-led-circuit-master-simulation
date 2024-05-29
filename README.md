@@ -1,6 +1,6 @@
 # F1-LED-CIRCUIT SIMULATION
 
-Here are the driver numbers for all Formula 1 drivers for the 2024 season:
+Here are the driver numbers for all Formula 1 drivers for the 2023 season:
 
 1. Max Verstappen, Red Bull
 2. Logan Sargeant, Williams
