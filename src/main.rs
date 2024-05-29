@@ -80,6 +80,8 @@ impl PlotApp {
             let current_time = Utc::now();
 
             if current_time >= self.next_update_time {
+                let mut new_active_leds = HashSet::new();
+
                 self.current_index += 1;
                 if self.current_index < self.run_race_data.len() {
                     let run_data = &self.run_race_data[self.current_index];
@@ -91,15 +93,15 @@ impl PlotApp {
                     );
 
                     self.led_states.insert(coord_key, color); // Update the LED state
-                    self.active_leds.insert(coord_key); // Add to active LEDs
+                    new_active_leds.insert(coord_key); // Add to new active LEDs
 
                     self.calculate_next_update_time(); // Calculate next update time for the next data point
                 }
-            }
 
-            // Remove inactive LEDs
-            self.led_states.retain(|k, _| self.active_leds.contains(k));
-            self.active_leds.clear(); // Clear active LEDs after updating
+                // Remove inactive LEDs
+                self.led_states.retain(|k, _| new_active_leds.contains(k));
+                self.active_leds = new_active_leds; // Update active LEDs to new set
+            }
         }
     }
 
