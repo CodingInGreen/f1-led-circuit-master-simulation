@@ -87,32 +87,39 @@ impl PlotApp {
     fn update_race(&mut self) {
         if self.race_started {
             let current_time = Utc::now();
-
+    
             if current_time >= self.next_update_time {
-                let mut new_active_leds = HashSet::new();
-
-                self.current_index += 1;
                 if self.current_index < self.run_race_data.len() {
                     let run_data = &self.run_race_data[self.current_index];
                     let color = self.colors.get(&run_data.driver_number).copied().unwrap_or(egui::Color32::WHITE);
-
+    
                     let coord_key = (
                         Self::scale_f64(run_data.x_led, 1_000_000),
                         Self::scale_f64(run_data.y_led, 1_000_000),
                     );
-
-                    self.led_states.insert(coord_key, color); // Update the LED state
-                    new_active_leds.insert(coord_key); // Add to new active LEDs
-
-                    self.calculate_next_update_time(); // Calculate next update time for the next data point
+    
+                    // Update the LED state for the current coordinate
+                    self.led_states.insert(coord_key, color);
+    
+                    // Calculate next update time for the next data point
+                    self.current_index += 1;
+                    self.calculate_next_update_time();
+    
+                    // Clear LEDs that are no longer active
+                    for key in self.active_leds.iter() {
+                        if !self.led_states.contains_key(key) {
+                            self.led_states.insert(*key, egui::Color32::BLACK);
+                        }
+                    }
+    
+                    // Update active LEDs to the new set
+                    self.active_leds.clear();
+                    self.active_leds.insert(coord_key);
                 }
-
-                // Remove inactive LEDs
-                self.led_states.retain(|k, _| new_active_leds.contains(k));
-                self.active_leds = new_active_leds; // Update active LEDs to new set
             }
         }
     }
+    
 
     fn scale_f64(value: f64, scale: i64) -> i64 {
         (value * scale as f64) as i64
