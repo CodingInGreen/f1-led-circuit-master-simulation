@@ -98,27 +98,31 @@ impl PlotApp {
                         Self::scale_f64(run_data.y_led, 1_000_000),
                     );
     
+                    // Track previous active LEDs
+                    let previous_active_leds = self.active_leds.clone();
+    
                     // Update the LED state for the current coordinate
                     self.led_states.insert(coord_key, color);
-    
-                    // Calculate next update time for the next data point
-                    self.current_index += 1;
-                    self.calculate_next_update_time();
-    
-                    // Clear LEDs that are no longer active
-                    for key in self.active_leds.iter() {
-                        if !self.led_states.contains_key(key) {
-                            self.led_states.insert(*key, egui::Color32::BLACK);
-                        }
-                    }
     
                     // Update active LEDs to the new set
                     self.active_leds.clear();
                     self.active_leds.insert(coord_key);
+    
+                    // Clear LEDs that are no longer active
+                    for key in previous_active_leds.iter() {
+                        if !self.active_leds.contains(key) {
+                            self.led_states.insert(*key, egui::Color32::BLACK);
+                        }
+                    }
+    
+                    // Calculate next update time for the next data point
+                    self.current_index += 1;
+                    self.calculate_next_update_time();
                 }
             }
         }
     }
+    
     
 
     fn scale_f64(value: f64, scale: i64) -> i64 {
